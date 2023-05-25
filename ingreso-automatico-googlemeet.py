@@ -11,7 +11,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import os
 
 process = None
 
@@ -21,14 +20,19 @@ def start_recording():
     process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid)
 
 def stop_recording():
-    
     global process
     if process is not None:
         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
         process = None
 
 class MeetBot:
+    def close(self):
+        self.bot.quit()
+
     def __init__(self):
+        self.bot = None
+
+    def initialize_bot(self):
         options = Options()
         options.add_argument("user-data-dir=/home/ubuntu/nuevamente/subir/pepe2/")  # Path to your chrome profile
         options.add_argument('window-size=1920x1080')
@@ -43,44 +47,22 @@ class MeetBot:
             join_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/c-wiz/div/div/div[13]/div[3]/div/div[1]/div[4]/div/div/div[2]/div[1]/div[2]/div[1]/div[1]/button")))
             join_btn.click()
             print("Se hizo clic en el primer botón")
-
-        # Si no se encuentra el primer botón, intentar con el segundo botón
         except:
             join_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/c-wiz/div/div/div[14]/div[3]/div/div[2]/div[4]/div/div/div[2]/div[1]/div[2]/div[1]/div[1]/button")))
             join_btn.click()
             print("Se hizo clic en el segundo botón")
         start_recording()
-        while True:
-            time.sleep(1)
-        stop_recording()
-        bot.save_screenshot('viscreenshotantesdemorir.png')
-        with open('viantesdepaginalogin.html', 'w') as f:
-            f.write(html)
-        
-    def stopperer(self):
-        bot = self.bot
-        wait = WebDriverWait(bot, 5)
-        stop_recording()
-        html = bot.page_source
-        bot.save_screenshot('screenshot.png')
-        with open('paginalogin.html', 'w') as f:
-            f.write(html)
-# Nombre del archivo de audio
-        audio_file = "audio.wav"
-# Ruta completa del archivo de audio
-        audio_file_path = os.path.join(os.getcwd(), audio_file)
 
-# Obtener la fecha actual
+    def stop_recording(self):
+        stop_recording()
+        self.close()
+        audio_file = "audio.wav"
+        audio_file_path = os.path.join(os.getcwd(), audio_file)
         current_date = datetime.datetime.now()
-# Convertir la fecha en formato de cadena
-        current_date_str = current_date.strftime("%Y-%m-%d")
-# Generar el hash MD5 de la fecha
+        current_date_str = current_date.strftime("%m/%d/%Y, %H:%M:%S")
         md5_hash = hashlib.md5(current_date_str.encode()).hexdigest()
-# Nombre de la carpeta con el hash MD5 y la fecha
-        folder_name = md5_hash + "_" + current_date_str
-# Configurar cliente de AWS S3
-        s3_client = boto3.client('s3',aws_access_key_id='AKIAZVXONNLLTFMZQJDT',aws_secret_access_key='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',region_name='us-east-1')
-# Enviar archivo a S3 dentro de la carpeta
+        folder_name = md5_hash
+        s3_client = boto3.client('s3',aws_access_key_id='############',aws_secret_access_key='##############',region_name='########')
         bucket_name = 'busy-berry-meet-records'
         s3_key = folder_name + "/" + audio_file
         s3_client.upload_file(audio_file_path, bucket_name, s3_key)
@@ -93,7 +75,24 @@ class MeetBot:
         else:
             print("El archivo audio.wav no existe.")
 
-        
+
+    def save_screenshot(self):
+        if self.bot is not None:
+            self.bot.save_screenshot('screenshot.png')
+
+    def save_html(self):
+        if self.bot is not None:
+            html = self.bot.page_source
+            with open('paginalogin.html', 'w') as f:
+                f.write(html)
+
+    def reset(self):
+        self.close()
+        self.bot = None
+
+def reset_app():
+    global bot
+    bot.reset()
 
 app = Flask(__name__)
 bot = MeetBot()
@@ -106,6 +105,8 @@ def index():
 def join_meeting():
     meeting_link = request.form.get('meeting_link')
     if meeting_link:
+        if bot.bot is None:
+            bot.initialize_bot()
         bot.join(meeting_link)
         return 'Bot joined meeting successfully.'
     else:
@@ -113,7 +114,8 @@ def join_meeting():
 
 @app.route('/stop-recording', methods=['POST'])
 def stop_recording_route():
-    bot.stopperer()
+    bot.stop_recording()
+    reset_app()
     return 'Recording stopped successfully.'
 
 if __name__ == '__main__':
