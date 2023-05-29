@@ -52,6 +52,7 @@ class MeetBot:
             join_btn.click()
             print("Se hizo clic en el segundo botón")
         start_recording()
+        self.get_users(bot)
 
     def stop_recording(self):
         stop_recording()
@@ -62,7 +63,7 @@ class MeetBot:
         current_date_str = current_date.strftime("%m/%d/%Y, %H:%M:%S")
         md5_hash = hashlib.md5(current_date_str.encode()).hexdigest()
         folder_name = md5_hash
-        s3_client = boto3.client('s3',aws_access_key_id='############',aws_secret_access_key='##############',region_name='########')
+        s3_client = boto3.client('s3',aws_access_key_id='##############',aws_secret_access_key='##############',region_name='us-east-1')
         bucket_name = 'busy-berry-meet-records'
         s3_key = folder_name + "/" + audio_file
         s3_client.upload_file(audio_file_path, bucket_name, s3_key)
@@ -75,20 +76,59 @@ class MeetBot:
         else:
             print("El archivo audio.wav no existe.")
 
-
-    def save_screenshot(self):
-        if self.bot is not None:
-            self.bot.save_screenshot('screenshot.png')
-
-    def save_html(self):
-        if self.bot is not None:
-            html = self.bot.page_source
-            with open('paginalogin.html', 'w') as f:
-                f.write(html)
-
     def reset(self):
         self.close()
         self.bot = None
+        self.participants_count = 0
+        self.max_participants = 30
+
+    def get_users(self, bot):
+        wait = WebDriverWait(bot, 5)
+        try:
+            show_users = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/c-wiz/div[1]/div/div[14]/div[3]/div[11]/div/div/div[3]/div/div[2]/div/span/button")))
+            show_users.click()
+            print("Se hizo clic en el primer botónon")
+        except:
+            show_users = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/c-wiz/div[1]/div/div[13]/div[3]/div[11]/div/div/div[3]/div/div[2]/div/span/button")))
+            show_users.click()
+            print("Se hizo clic en el segundo botón")
+    
+        participant_xpath_list = [
+            '/html/body/div[1]/c-wiz/div[1]/div/div[14]/div[3]/div[4]/div[2]/div/div[2]/div[2]/div[3]/div/div[{}]/div[1]/div[2]/div[1]/span[1]',
+            '/html/body/div[1]/c-wiz/div[1]/div/div[13]/div[3]/div[4]/div[2]/div/div[2]/div[2]/div[3]/div/div[{}]/div[1]/div[2]/div[1]/span[1]',
+            '/html/body/div[1]/c-wiz/div[1]/div/div[14]/div[3]/div[4]/div[2]/div/div[2]/div[2]/div[3]/div/div[{}]/div[1]/div[2]/div[1]/span'
+        ]
+    
+        max_participants = 30
+        participants_count = 0
+    
+        for xpath_format in participant_xpath_list:
+            index = 1
+            while True:
+                xpath = xpath_format.format(index)
+                participant_elements = bot.find_elements(By.XPATH, xpath)
+                if not participant_elements:
+                    #print(f"No se encontraron participantes con el XPath: {xpath}")
+                    break
+                
+                for participant_element in participant_elements:
+                    participant_name = participant_element.text
+                    if not participant_name:
+                        print(f"ayuda no encontre nombre {xpath}")
+                    else:
+                        print(participant_name)
+                        participants_count += 1
+                        if participants_count >= max_participants:
+                            break
+                        
+                if participants_count >= max_participants:
+                    break
+                
+                index += 1
+            
+            if participants_count >= max_participants:
+                break
+
 
 def reset_app():
     global bot
